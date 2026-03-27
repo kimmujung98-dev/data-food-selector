@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>데이트 메뉴 선택 프로그램</title>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Jua', sans-serif;
+  image-rendering: pixelated;
+}
+
+/* Shared background behind all screens */
+#bgCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s;
+  z-index: 1;
+}
+.screen.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* ─────────────── INTRO ─────────────── */
+#screen-intro { cursor: pointer; overflow: hidden; }
+
+.curtain-half {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(160deg, #ff6ba8 0%, #ffa8cc 100%);
+  z-index: 5;
+  transition: transform 1.4s cubic-bezier(0.77, 0, 0.175, 1);
+  overflow: hidden;
+}
+.curtain-half::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg, transparent 0px, transparent 18px,
+    rgba(255,255,255,0.12) 18px, rgba(255,255,255,0.12) 20px
+  );
+}
+.curtain-half.left  { left: 0; }
+.curtain-half.right { right: 0; transform: scaleX(-1); }
+.curtain-half.left.open  { transform: translateX(-100%); }
+.curtain-half.right.open { transform: translateX(100%) scaleX(-1); }
+
+.star {
+  position: absolute;
+  color: rgba(255,255,255,0.55);
+  font-size: 22px;
+  animation: twinkle 2s infinite;
+}
+@keyframes twinkle { 0%,100%{opacity:0.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
+
+.title-part {
+  position: absolute;
+  font-size: clamp(22px, 3.5vw, 34px);
+  color: #fff;
+  text-shadow: 4px 4px 0 #c0306a, 7px 7px 0 rgba(0,0,0,0.2);
+  white-space: nowrap;
+  letter-spacing: 3px;
+  line-height: 2.4;
+  z-index: 10;
+  pointer-events: none;
+  transition: transform 1.5s cubic-bezier(0.77, 0, 0.175, 1);
+}
+/* 왼쪽 파트: 오른쪽 끝이 화면 중앙에 맞닿음 */
+.title-part.left-part {
+  right: 50%;
+  text-align: right;
+  padding-right: 6px;
+}
+/* 오른쪽 파트: 왼쪽 끝이 화면 중앙에 맞닿음 */
+.title-part.right-part {
+  left: 50%;
+  text-align: left;
+  padding-left: 6px;
+}
+.title-part.left-part.split  { transform: translateX(-200vw); }
+.title-part.right-part.split { transform: translateX(200vw); }
+
+.couple-stage {
+  position: absolute;
+  bottom: 110px;
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  z-index: 3;
+  transform: translateY(160px) scale(0.7);
+  opacity: 0;
+  transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s,
+              opacity 0.8s ease-out 0.5s;
+}
+.couple-stage.show { transform: translateY(0) scale(1); opacity: 1; }
+
+.bob { animation: bob 0.5s ease-in-out infinite alternate; }
+@keyframes bob { from{transform:translateY(0)} to{transform:translateY(-5px)} }
+
+.click-hint {
+  position: absolute;
+  bottom: 36px;
+  font-size: 13px;
+  color: #fff;
+  text-shadow: 2px 2px 0 #c0306a;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.6s;
+  animation: blink 1.2s infinite;
+}
+.click-hint.show { opacity: 1; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+/* ─────────────── INPUT ─────────────── */
+#screen-input { gap: 18px; }
+
+.glass-panel {
+  background: rgba(255,255,255,0.88);
+  border: 4px solid #222;
+  box-shadow: 8px 8px 0 #222;
+  padding: 20px 22px;
+}
+
+.input-header {
+  font-size: clamp(12px, 1.8vw, 16px);
+  color: #5a3d8a;
+  text-shadow: 2px 2px 0 #d4b0ff;
+  text-align: center;
+  background: rgba(255,255,255,0.88);
+  border: 4px solid #222;
+  box-shadow: 6px 6px 0 #222;
+  padding: 14px 20px;
+}
+
+.input-row { display: flex; gap: 18px; align-items: flex-start; }
+
+.vs-badge {
+  align-self: center;
+  font-size: 20px;
+  color: #e04e8a;
+  text-shadow: 3px 3px 0 #ffa8cc;
+}
+
+.input-panel {
+  background: rgba(255,255,255,0.92);
+  border: 4px solid #222;
+  box-shadow: 7px 7px 0 #222;
+  padding: 18px 16px;
+  min-width: 210px;
+}
+.panel-head {
+  font-size: 13px;
+  text-align: center;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 3px solid #222;
+}
+.panel-head.boy  { color: #3a7bd5; }
+.panel-head.girl { color: #e04e8a; }
+
+.mrow { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.mnum { font-size: 11px; color: #aaa; width: 16px; }
+
+.minput {
+  font-family: 'Jua', sans-serif;
+  font-size: 10px;
+  border: 3px solid #222;
+  padding: 9px 10px;
+  width: 162px;
+  background: #fffde7;
+  outline: none;
+  transition: background 0.2s;
+}
+.minput:focus { background: #fff9c4; border-color: #ff6ba8; }
+
+.go-btn {
+  font-family: 'Jua', sans-serif;
+  font-size: 15px;
+  background: #ff6ba8;
+  color: #fff;
+  border: 4px solid #222;
+  box-shadow: 7px 7px 0 #222;
+  padding: 16px 32px;
+  cursor: pointer;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.go-btn:hover  { transform: translate(2px,2px); box-shadow: 5px 5px 0 #222; }
+.go-btn:active { transform: translate(7px,7px); box-shadow: 0 0 0 #222; }
+
+/* ─────────────── SELECTION ─────────────── */
+#screen-select { gap: 16px; }
+
+.sel-title {
+  font-size: clamp(12px, 1.8vw, 17px);
+  color: #5a3d8a;
+  text-shadow: 3px 3px 0 #d4b0ff;
+  background: rgba(255,255,255,0.88);
+  border: 4px solid #222;
+  box-shadow: 6px 6px 0 #222;
+  padding: 12px 20px;
+}
+
+.arena {
+  position: relative;
+  width: min(640px, 90vw);
+  height: min(380px, 52vh);
+  background: rgba(255,255,255,0.88);
+  border: 4px solid #222;
+  box-shadow: 9px 9px 0 #222;
+  overflow: hidden;
+}
+
+.menu-chip {
+  position: absolute;
+  font-family: 'Jua', sans-serif;
+  font-size: 11px;
+  padding: 12px 16px;
+  border: 3px solid #222;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: left 0.25s cubic-bezier(0.34,1.56,0.64,1),
+              top  0.25s cubic-bezier(0.34,1.56,0.64,1),
+              box-shadow 0.08s;
+}
+.menu-chip.boy {
+  background: #cce5ff;
+  box-shadow: 4px 4px 0 #222;
+}
+.menu-chip.boy:hover {
+  background: #99caff;
+  transform: translate(-2px,-2px);
+  box-shadow: 6px 6px 0 #222;
+}
+.menu-chip.girl {
+  background: #ffd6e7;
+  box-shadow: 4px 4px 0 #222;
+  cursor: default;
+}
+
+.sel-hint {
+  font-size: 10px;
+  color: #e04e8a;
+  text-shadow: 1px 1px 0 rgba(255,255,255,0.8);
+}
+
+/* ─────────────── RESULT ─────────────── */
+#screen-result { gap: 18px; }
+
+.confetti-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.result-card {
+  background: rgba(255,255,255,0.90);
+  border: 4px solid #222;
+  box-shadow: 8px 8px 0 #222;
+  padding: 28px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  z-index: 1;
+}
+
+.result-label {
+  font-size: 13px;
+  color: #7a5aaa;
+}
+.result-food-name {
+  font-size: clamp(20px, 3.5vw, 32px);
+  color: #e04e8a;
+  text-shadow: 4px 4px 0 #ff9a9e, 8px 8px 0 rgba(0,0,0,0.1);
+  text-align: center;
+}
+.result-msg {
+  font-size: 11px;
+  color: #7a5aaa;
+  text-align: center;
+  line-height: 2.2;
+}
+
+#happyCouple { image-rendering: pixelated; }
+
+.replay-btn {
+  font-family: 'Jua', sans-serif;
+  font-size: 13px;
+  background: #ffd700;
+  color: #222;
+  border: 4px solid #222;
+  box-shadow: 6px 6px 0 #222;
+  padding: 14px 24px;
+  cursor: pointer;
+  z-index: 1;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.replay-btn:hover  { transform: translate(2px,2px); box-shadow: 4px 4px 0 #222; }
+.replay-btn:active { transform: translate(6px,6px); box-shadow: 0 0 0 #222; }
+</style>
+</head>
+<body>
+
+<!-- Shared background canvas -->
+<canvas id="bgCanvas"></canvas>
+
+<!-- ════════════ INTRO ════════════ -->
+<div class="screen active" id="screen-intro">
+  <div class="curtain-half left" id="curtainL">
+    <span class="star" style="top:15%;left:60%">★</span>
+    <span class="star" style="top:70%;left:30%;animation-delay:0.5s">♥</span>
+    <span class="star" style="top:40%;left:75%;animation-delay:1s">★</span>
+  </div>
+  <div class="curtain-half right" id="curtainR">
+    <span class="star" style="top:20%;left:55%">♥</span>
+    <span class="star" style="top:65%;left:25%;animation-delay:0.7s">★</span>
+    <span class="star" style="top:35%;left:70%;animation-delay:1.3s">♥</span>
+  </div>
+
+  <div class="title-part left-part" id="titleL">데이트<br>선택</div>
+  <div class="title-part right-part" id="titleR">메뉴<br>프로그램</div>
+
+  <div class="couple-stage" id="coupleStage">
+    <canvas id="boyIntro" class="bob" style="animation-delay:0.1s"></canvas>
+    <canvas id="girlIntro" class="bob" style="animation-delay:0.25s"></canvas>
+  </div>
+
+  <div class="click-hint" id="clickHint">▶ CLICK TO START ◀</div>
+</div>
+
+<!-- ════════════ INPUT ════════════ -->
+<div class="screen" id="screen-input">
+  <div class="input-header">★ 먹고 싶은 메뉴를 적어봐! (1개 이상) ★</div>
+  <div class="input-row">
+    <div class="input-panel">
+      <div class="panel-head boy">💙 남자친구</div>
+      <div class="mrow"><span class="mnum">1.</span><input class="minput" id="b1" placeholder="메뉴 입력.."></div>
+      <div class="mrow"><span class="mnum">2.</span><input class="minput" id="b2" placeholder="메뉴 입력.."></div>
+      <div class="mrow"><span class="mnum">3.</span><input class="minput" id="b3" placeholder="메뉴 입력.."></div>
+    </div>
+    <div class="vs-badge">VS</div>
+    <div class="input-panel">
+      <div class="panel-head girl">🩷 여자친구</div>
+      <div class="mrow"><span class="mnum">1.</span><input class="minput" id="g1" placeholder="메뉴 입력.."></div>
+      <div class="mrow"><span class="mnum">2.</span><input class="minput" id="g2" placeholder="메뉴 입력.."></div>
+      <div class="mrow"><span class="mnum">3.</span><input class="minput" id="g3" placeholder="메뉴 입력.."></div>
+    </div>
+  </div>
+  <button class="go-btn" id="goBtn">메뉴 고르기! ▶</button>
+</div>
+
+<!-- ════════════ SELECTION ════════════ -->
+<div class="screen" id="screen-select">
+  <div class="sel-title">💙 먹고 싶은 메뉴를 골라봐!</div>
+  <div class="arena" id="arena"></div>
+  <div class="sel-hint">※ 분명 공정하게 만들었어...</div>
+</div>
+
+<!-- ════════════ RESULT ════════════ -->
+<div class="screen" id="screen-result">
+  <canvas class="confetti-layer" id="confettiCv"></canvas>
+  <div class="result-card">
+    <div class="result-label">오늘의 데이트 메뉴는...</div>
+    <div class="result-food-name" id="resultName">?</div>
+    <canvas id="happyCouple"></canvas>
+    <div class="result-msg">결정됐다! 이제 무조건 가야해~! 🎉</div>
+  </div>
+  <button class="replay-btn" id="replayBtn">↩ 다시 하기</button>
+</div>
+
+<script>
+// ══════════════════════════════════════
+//  BACKGROUND: HILLS + HOUSE + FLOWERS
+// ══════════════════════════════════════
+function drawBackground() {
+  const cv  = document.getElementById('bgCanvas');
+  const W   = cv.width  = window.innerWidth;
+  const H   = cv.height = window.innerHeight;
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  // Sky gradient
+  const sky = ctx.createLinearGradient(0, 0, 0, H * 0.7);
+  sky.addColorStop(0,   '#87CEEB');
+  sky.addColorStop(0.6, '#C8EAFF');
+  sky.addColorStop(1,   '#D8F4CC');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+
+  // Small clouds
+  function cloud(x, y, s) {
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    [[0,0,s*2.2,s],[s*0.8,-s*0.6,s*2,s],[s*1.8,-s*0.3,s*1.8,s]].forEach(([dx,dy,w,h]) => {
+      ctx.beginPath();
+      ctx.ellipse(x+dx, y+dy, w/2, h/2, 0, 0, Math.PI*2);
+      ctx.fill();
+    });
+  }
+  cloud(W*0.1,  H*0.12, 28);
+  cloud(W*0.45, H*0.08, 22);
+  cloud(W*0.72, H*0.14, 32);
+
+  // Far hill (lighter green)
+  ctx.fillStyle = '#7DC55A';
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  ctx.lineTo(0, H * 0.52);
+  ctx.bezierCurveTo(W*0.15, H*0.32, W*0.35, H*0.28, W*0.5, H*0.38);
+  ctx.bezierCurveTo(W*0.65, H*0.46, W*0.8, H*0.36, W, H*0.42);
+  ctx.lineTo(W, H);
+  ctx.fill();
+
+  // Near hill (richer green)
+  ctx.fillStyle = '#5BAD38';
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  ctx.lineTo(0, H * 0.68);
+  ctx.bezierCurveTo(W*0.1, H*0.52, W*0.28, H*0.46, W*0.45, H*0.58);
+  ctx.bezierCurveTo(W*0.6, H*0.68, W*0.75, H*0.54, W, H*0.60);
+  ctx.lineTo(W, H);
+  ctx.fill();
+
+  // Ground strip
+  ctx.fillStyle = '#4C9A2A';
+  ctx.fillRect(0, H*0.82, W, H*0.18);
+
+  // ── House ──
+  const hx = W * 0.74;
+  const hy = H * 0.50;
+  const hw = 110, hh = 80;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.fillRect(hx + 8, hy + 8, hw, hh);
+
+  // Walls (white)
+  ctx.fillStyle = '#F5F0E8';
+  ctx.fillRect(hx, hy, hw, hh);
+
+  // Pixel outline
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(hx, hy, hw, hh);
+
+  // Door
+  ctx.fillStyle = '#8B5E3C';
+  ctx.fillRect(hx + hw/2 - 14, hy + hh - 36, 28, 36);
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(hx + hw/2 - 14, hy + hh - 36, 28, 36);
+  // Door knob
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath(); ctx.arc(hx + hw/2 + 8, hy + hh - 18, 4, 0, Math.PI*2); ctx.fill();
+
+  // Windows
+  function window_(wx, wy) {
+    ctx.fillStyle = '#ADE4F7';
+    ctx.fillRect(wx, wy, 26, 22);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+    ctx.strokeRect(wx, wy, 26, 22);
+    ctx.beginPath(); ctx.moveTo(wx+13,wy); ctx.lineTo(wx+13,wy+22); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(wx,wy+11); ctx.lineTo(wx+26,wy+11); ctx.stroke();
+  }
+  window_(hx + 12,         hy + 18);
+  window_(hx + hw - 12 - 26, hy + 18);
+
+  // Roof (red)
+  ctx.fillStyle = '#CC3333';
+  ctx.beginPath();
+  ctx.moveTo(hx - 14,      hy + 4);
+  ctx.lineTo(hx + hw/2,    hy - 46);
+  ctx.lineTo(hx + hw + 14, hy + 4);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Chimney
+  ctx.fillStyle = '#AA4444';
+  ctx.fillRect(hx + hw*0.7, hy - 58, 18, 30);
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
+  ctx.strokeRect(hx + hw*0.7, hy - 58, 18, 30);
+  // Smoke puffs
+  ctx.fillStyle = 'rgba(200,200,200,0.6)';
+  [[-2,-12],[4,-22],[-4,-30]].forEach(([dx,dy]) => {
+    ctx.beginPath();
+    ctx.arc(hx + hw*0.7 + 9 + dx, hy - 58 + dy, 7, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  // ── Pixel flowers ──
+  const flowers = [
+    {x:W*0.08, y:H*0.70, c:'#FF88BB'}, {x:W*0.14, y:H*0.74, c:'#FFDD44'},
+    {x:W*0.22, y:H*0.68, c:'#FF6699'}, {x:W*0.30, y:H*0.72, c:'#FFFFFF'},
+    {x:W*0.38, y:H*0.66, c:'#FF88BB'}, {x:W*0.52, y:H*0.71, c:'#FFDD44'},
+    {x:W*0.60, y:H*0.75, c:'#FF6699'}, {x:W*0.88, y:H*0.69, c:'#FFFFFF'},
+    {x:W*0.92, y:H*0.72, c:'#FF88BB'}, {x:W*0.96, y:H*0.67, c:'#FFDD44'},
+    {x:W*0.05, y:H*0.55, c:'#FFFFFF'}, {x:W*0.18, y:H*0.50, c:'#FFDD44'},
+    {x:W*0.62, y:H*0.58, c:'#FF88BB'}, {x:W*0.84, y:H*0.56, c:'#FF6699'},
+  ];
+  flowers.forEach(f => pixelFlower(ctx, f.x, f.y, f.c));
+}
+
+function pixelFlower(ctx, x, y, color) {
+  const s = 5;
+  // petals
+  ctx.fillStyle = color;
+  [[-s,0],[s,0],[0,-s],[0,s],[-s,-s],[s,-s],[-s,s],[s,s]].forEach(([dx,dy]) => {
+    ctx.fillRect(x+dx-s/2, y+dy-s/2, s, s);
+  });
+  // center
+  ctx.fillStyle = '#FFEE55';
+  ctx.fillRect(x-s/2, y-s/2, s, s);
+  // stem
+  ctx.fillStyle = '#44AA22';
+  ctx.fillRect(x-2, y+s, 4, 10);
+}
+
+window.addEventListener('resize', drawBackground);
+
+// ══════════════════════════════════════
+//  PIXEL SPRITE DEFINITIONS
+// ══════════════════════════════════════
+const _ = null;
+const C = {
+  s: '#FDDBB4', S: '#F0A070',
+  h: '#5C3317', H: '#3D2007',
+  e: '#111111',
+  w: '#FFFFFF',
+  b: '#4477CC', B: '#2255AA',
+  p: '#FF88BB', P: '#EE5599',
+  d: '#223366',
+  r: '#FF3366',
+  k: '#222222',
+};
+
+const BOY_NORMAL = [
+  [_,_,_,_,C.H,C.H,C.H,C.H,C.H,C.H,C.H,C.H,_,_,_,_],
+  [_,_,C.H,C.H,C.H,C.H,C.H,C.H,C.H,C.H,C.H,C.H,C.H,C.H,_,_],
+  [_,C.H,C.H,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.H,C.H,C.H,C.H,_],
+  [_,C.h,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.h,_],
+  [_,_,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,_,_],
+  [_,_,C.s,C.e,C.e,C.s,C.s,C.s,C.s,C.s,C.e,C.e,C.s,C.s,_,_],
+  [_,_,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,_,_],
+  [_,_,C.s,C.s,C.s,C.s,C.e,C.e,C.e,C.e,C.s,C.s,C.s,C.s,_,_],
+  [_,_,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,_,_],
+  [_,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,_],
+  [_,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,_],
+  [_,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,_],
+  [_,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,_],
+  [_,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,C.b,_],
+  [_,C.d,C.d,C.d,C.d,C.d,C.d,_,_,C.d,C.d,C.d,C.d,C.d,C.d,_],
+  [_,C.d,C.d,C.d,C.d,C.d,C.d,_,_,C.d,C.d,C.d,C.d,C.d,C.d,_],
+  [_,C.d,C.d,C.d,C.d,C.d,C.d,_,_,C.d,C.d,C.d,C.d,C.d,C.d,_],
+  [_,C.d,C.d,C.d,C.d,C.d,C.d,_,_,C.d,C.d,C.d,C.d,C.d,C.d,_],
+  [_,C.d,C.d,C.d,C.d,C.d,C.d,_,_,C.d,C.d,C.d,C.d,C.d,C.d,_],
+  [C.k,C.k,C.k,C.k,C.k,C.k,C.k,_,_,C.k,C.k,C.k,C.k,C.k,C.k,_],
+  [C.k,C.k,C.k,C.k,C.k,C.k,C.k,_,_,C.k,C.k,C.k,C.k,C.k,C.k,_],
+  [C.k,C.k,C.k,C.k,C.k,C.k,C.k,_,_,C.k,C.k,C.k,C.k,C.k,C.k,_],
+  [_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_],
+  [_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_],
+];
+
+const BOY_HAPPY = BOY_NORMAL.map((row, y) => {
+  if (y === 5) return [_,_,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,_,_];
+  if (y === 6) return [_,_,C.s,C.e,C.e,C.s,C.s,C.s,C.s,C.s,C.e,C.e,C.s,C.s,_,_];
+  if (y === 7) return [_,_,C.s,C.s,C.e,C.s,C.s,C.s,C.s,C.s,C.s,C.e,C.s,C.s,_,_];
+  if (y === 8) return [_,_,C.s,C.s,C.s,C.e,C.e,C.e,C.e,C.e,C.e,C.s,C.s,C.s,_,_];
+  return row;
+});
+
+const GIRL_NORMAL = [
+  [_,_,_,C.r,C.r,C.r,C.r,C.r,C.r,C.r,C.r,C.r,C.r,_,_,_],
+  [_,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,_],
+  [_,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,C.h,_],
+  [_,C.h,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.h,_],
+  [_,_,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,_,_],
+  [_,_,C.s,C.e,C.e,C.s,C.s,C.s,C.s,C.s,C.e,C.e,C.s,C.s,_,_],
+  [_,_,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,_,_],
+  [_,_,C.s,C.s,C.s,C.s,C.p,C.p,C.p,C.p,C.s,C.s,C.s,C.s,_,_],
+  [_,C.h,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.h,_],
+  [_,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,_],
+  [C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p],
+  [C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p],
+  [C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p,C.p],
+  [C.p,C.p,C.p,C.P,C.P,C.p,C.p,C.p,C.p,C.p,C.P,C.P,C.p,C.p,C.p,C.p],
+  [_,C.p,C.p,C.p,C.p,C.p,C.p,_,_,C.p,C.p,C.p,C.p,C.p,C.p,_],
+  [_,C.p,C.p,C.p,C.p,C.p,C.p,_,_,C.p,C.p,C.p,C.p,C.p,C.p,_],
+  [_,C.s,C.s,C.s,C.s,C.s,C.s,_,_,C.s,C.s,C.s,C.s,C.s,C.s,_],
+  [_,C.s,C.s,C.s,C.s,C.s,C.s,_,_,C.s,C.s,C.s,C.s,C.s,C.s,_],
+  [_,C.w,C.w,C.w,C.w,C.w,C.w,_,_,C.w,C.w,C.w,C.w,C.w,C.w,_],
+  [_,C.w,C.w,C.w,C.w,C.w,C.w,_,_,C.w,C.w,C.w,C.w,C.w,C.w,_],
+  [C.p,C.p,C.w,C.w,C.w,C.w,C.w,_,_,C.w,C.w,C.w,C.w,C.w,C.p,C.p],
+  [_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_],
+  [_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_],
+  [_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_],
+];
+
+const GIRL_HAPPY = GIRL_NORMAL.map((row, y) => {
+  if (y === 5) return [_,_,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,C.s,_,_];
+  if (y === 6) return [_,_,C.s,C.e,C.e,C.s,C.s,C.s,C.s,C.s,C.e,C.e,C.s,C.s,_,_];
+  if (y === 7) return [_,_,C.s,C.s,C.e,C.s,C.s,C.s,C.s,C.s,C.s,C.e,C.s,C.s,_,_];
+  if (y === 8) return [_,C.h,C.s,C.s,C.s,C.e,C.e,C.e,C.e,C.e,C.e,C.s,C.s,C.s,C.h,_];
+  return row;
+});
+
+function drawSprite(ctx, sprite, ox, oy, sc) {
+  sprite.forEach((row, y) => {
+    row.forEach((color, x) => {
+      if (!color) return;
+      ctx.fillStyle = color;
+      ctx.fillRect(ox + x * sc, oy + y * sc, sc, sc);
+    });
+  });
+}
+
+function renderToCanvas(canvas, sprite, sc) {
+  canvas.width  = 16 * sc;
+  canvas.height = 24 * sc;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  drawSprite(ctx, sprite, 0, 0, sc);
+}
+
+// ══════════════════════════════════════
+//  SCREEN SWITCHER
+// ══════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ══════════════════════════════════════
+//  INTRO
+// ══════════════════════════════════════
+window.addEventListener('load', () => {
+  drawBackground();
+
+  renderToCanvas(document.getElementById('boyIntro'),  BOY_NORMAL,  5);
+  renderToCanvas(document.getElementById('girlIntro'), GIRL_NORMAL, 5);
+
+  setTimeout(() => {
+    document.getElementById('curtainL').classList.add('open');
+    document.getElementById('curtainR').classList.add('open');
+    document.getElementById('titleL').classList.add('split');
+    document.getElementById('titleR').classList.add('split');
+
+    setTimeout(() => {
+      document.getElementById('coupleStage').classList.add('show');
+      setTimeout(() => {
+        document.getElementById('clickHint').classList.add('show');
+      }, 900);
+    }, 400);
+  }, 1800);
+
+  document.getElementById('screen-intro').addEventListener('click', () => {
+    showScreen('screen-input');
+  });
+});
+
+// ══════════════════════════════════════
+//  INPUT → SELECTION
+// ══════════════════════════════════════
+document.getElementById('goBtn').addEventListener('click', () => {
+  const boyMenus  = ['b1','b2','b3'].map(id => document.getElementById(id).value.trim()).filter(Boolean);
+  const girlMenus = ['g1','g2','g3'].map(id => document.getElementById(id).value.trim()).filter(Boolean);
+
+  if (boyMenus.length === 0)  { alert('남자친구 메뉴를 최소 1개 입력해줘!'); return; }
+  if (girlMenus.length === 0) { alert('여자친구 메뉴도 최소 1개 입력해줘!'); return; }
+
+  buildArena(boyMenus, girlMenus);
+  showScreen('screen-select');
+});
+
+// ══════════════════════════════════════
+//  SELECTION ARENA
+// ══════════════════════════════════════
+function buildArena(boyMenus, girlMenus) {
+  const arena = document.getElementById('arena');
+  arena.innerHTML = '';
+
+  const W = arena.clientWidth  || 600;
+  const H = arena.clientHeight || 350;
+  const PAD = 18;
+  const CHIP_W = 160;
+  const CHIP_H = 48;
+
+  const allItems = [
+    ...boyMenus.map(t => ({ text: t, type: 'boy' })),
+    ...girlMenus.map(t => ({ text: t, type: 'girl' })),
+  ].sort(() => Math.random() - 0.5);
+
+  const placed = [];
+
+  function randomPos() {
+    return {
+      x: PAD + Math.random() * (W - CHIP_W - PAD * 2),
+      y: PAD + Math.random() * (H - CHIP_H - PAD * 2),
+    };
+  }
+  function overlaps(pos, ignore) {
+    return placed.filter(p => p !== ignore).some(p =>
+      Math.abs(p.x - pos.x) < CHIP_W + 12 && Math.abs(p.y - pos.y) < CHIP_H + 12
+    );
+  }
+
+  allItems.forEach(item => {
+    const chip = document.createElement('div');
+    chip.className = 'menu-chip ' + item.type;
+    chip.textContent = (item.type === 'boy' ? '💙 ' : '🩷 ') + item.text;
+
+    let pos, tries = 0;
+    do { pos = randomPos(); tries++; } while (overlaps(pos, null) && tries < 60);
+
+    const state = { x: pos.x, y: pos.y };
+    placed.push(state);
+    chip.style.left = state.x + 'px';
+    chip.style.top  = state.y + 'px';
+
+    if (item.type === 'girl') {
+      chip.addEventListener('mouseenter', () => {
+        let newPos, t = 0;
+        do { newPos = randomPos(); t++; } while (overlaps(newPos, state) && t < 80);
+        state.x = newPos.x; state.y = newPos.y;
+        chip.style.left = newPos.x + 'px';
+        chip.style.top  = newPos.y + 'px';
+      });
+    } else {
+      chip.addEventListener('click', () => pickMenu(item.text));
+    }
+
+    arena.appendChild(chip);
+  });
+}
+
+// ══════════════════════════════════════
+//  PICK MENU → RESULT
+// ══════════════════════════════════════
+function pickMenu(foodName) {
+  document.getElementById('resultName').textContent = foodName;
+
+  const cv  = document.getElementById('happyCouple');
+  const sc  = 5;
+  const gap = 20;
+  cv.width  = 16 * sc * 2 + gap;
+  cv.height = 24 * sc;
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, cv.width, cv.height);
+
+  drawSprite(ctx, BOY_HAPPY,  0, 0, sc);
+  drawSprite(ctx, GIRL_HAPPY, 16*sc + gap, 0, sc);
+
+  // Pixel heart between them
+  const hx = 16*sc + 1, hy = 8*sc, hs = 4;
+  ctx.fillStyle = '#FF3366';
+  [[1,0],[2,0],[4,0],[5,0],
+   [0,1],[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],
+   [0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],
+   [1,3],[2,3],[3,3],[4,3],[5,3],
+   [2,4],[3,4],[4,4],[3,5]
+  ].forEach(([px,py]) => ctx.fillRect(hx+px*hs, hy+py*hs, hs, hs));
+
+  showScreen('screen-result');
+  startConfetti();
+}
+
+// ══════════════════════════════════════
+//  CONFETTI
+// ══════════════════════════════════════
+let confettiRAF = null;
+function startConfetti() {
+  if (confettiRAF) cancelAnimationFrame(confettiRAF);
+  const cv  = document.getElementById('confettiCv');
+  cv.width  = window.innerWidth;
+  cv.height = window.innerHeight;
+  const ctx = cv.getContext('2d');
+  const COLS = ['#FF6B9D','#FFD700','#6BB5FF','#FF9A9E','#88CC44','#FF6699','#FFCC44'];
+  const chips = Array.from({length: 80}, () => ({
+    x:  Math.random() * cv.width,
+    y: -20 - Math.random() * 120,
+    vx: (Math.random() - 0.5) * 2.5,
+    vy: 2 + Math.random() * 3,
+    rot: Math.random() * Math.PI * 2,
+    rs: (Math.random() - 0.5) * 0.15,
+    w:  7 + Math.random() * 8,
+    h:  7 + Math.random() * 8,
+    color: COLS[Math.floor(Math.random() * COLS.length)],
+  }));
+
+  function tick() {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    chips.forEach(c => {
+      c.x += c.vx; c.y += c.vy; c.rot += c.rs;
+      if (c.y > cv.height + 20) { c.y = -20; c.x = Math.random() * cv.width; }
+      ctx.save();
+      ctx.translate(c.x, c.y); ctx.rotate(c.rot);
+      ctx.fillStyle = c.color;
+      ctx.fillRect(-c.w/2, -c.h/2, c.w, c.h);
+      ctx.restore();
+    });
+    confettiRAF = requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+// ══════════════════════════════════════
+//  REPLAY
+// ══════════════════════════════════════
+document.getElementById('replayBtn').addEventListener('click', () => {
+  if (confettiRAF) { cancelAnimationFrame(confettiRAF); confettiRAF = null; }
+  ['b1','b2','b3','g1','g2','g3'].forEach(id => document.getElementById(id).value = '');
+  showScreen('screen-input');
+});
+</script>
+</body>
+</html>
